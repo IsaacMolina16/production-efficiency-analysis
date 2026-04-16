@@ -1,0 +1,9 @@
+machine_id,units_produced,downtime_minutes,defects
+M1,500,30,5
+M1,520,25,4
+M2,400,60,10
+M2,420,55,9
+M3,600,20,3
+M3,580,22,4
+M4,300,80,15
+M4,320,75,12
