@@ -3,85 +3,82 @@ import matplotlib.pyplot as plt
 import os
 
 # =========================
-# DEBUG: Ver archivos
+# CONFIG
 # =========================
-print("Files in directory:", os.listdir())
+DATA_PATH = 'production_data.csv'
+OUTPUT_PATH = 'outputs'
+os.makedirs(OUTPUT_PATH, exist_ok=True)
 
 # =========================
 # LOAD DATA
 # =========================
-df = pd.read_csv("production_data.csv")
-
-print("\nSample Data:\n")
-print(df.head())
+df = pd.read_csv(DATA_PATH)
 
 # =========================
-# KPI: Efficiency
+# METRICS (MEJOR DEFINIDAS)
 # =========================
-df['efficiency'] = df['units_produced'] / (df['downtime_minutes'] + 1)
+df['defect_rate'] = df['defects'] / df['units_produced']
+
+# Avoid division by zero cleanly
+df['downtime_ratio'] = df['downtime_minutes'] / (df['units_produced'] + 1)
 
 # =========================
-# AGGREGATION BY MACHINE
+# AGGREGATION
 # =========================
 machine_perf = df.groupby('machine_id').agg({
     'units_produced': 'sum',
     'downtime_minutes': 'sum',
     'defects': 'sum',
-    'efficiency': 'mean'
+    'defect_rate': 'mean',
+    'downtime_ratio': 'mean'
 }).reset_index()
 
-print("\nMachine Performance:\n")
-print(machine_perf)
+# =========================
+# RISK CLASSIFICATION (DATA-DRIVEN)
+# =========================
+threshold = machine_perf['defect_rate'].mean()
 
-# =========================
-# RISK CLASSIFICATION
-# =========================
-machine_perf['risk'] = machine_perf['efficiency'].apply(
-    lambda x: 'High Risk' if x < 8 else 'Low Risk'
+machine_perf['risk'] = machine_perf['defect_rate'].apply(
+    lambda x: 'High Risk' if x > threshold else 'Low Risk'
 )
 
-print("\nRisk Classification:\n")
-print(machine_perf[['machine_id', 'efficiency', 'risk']])
-
 # =========================
-# BAR CHART WITH RISK
+# BAR CHART
 # =========================
 plt.figure()
 
-colors = machine_perf['risk'].map({
-    'High Risk': 'red',
-    'Low Risk': 'green'
-})
-
-plt.bar(machine_perf['machine_id'], machine_perf['efficiency'])
+plt.bar(machine_perf['machine_id'], machine_perf['defect_rate'])
 
 plt.xlabel("Machine")
-plt.ylabel("Efficiency")
-plt.title("Machine Efficiency with Risk Classification")
+plt.ylabel("Defect Rate")
+plt.title("Defect Rate by Machine")
 
 plt.tight_layout()
-plt.savefig("efficiency_chart.png")
-plt.show()
+plt.savefig(f"{OUTPUT_PATH}/defect_rate.png")
+plt.close()
 
 # =========================
-# HIGH RISK MACHINES
-# =========================
-high_risk = machine_perf[machine_perf['risk'] == 'High Risk']
-
-print("\nHigh Risk Machines:\n")
-print(high_risk)
-
-# =========================
-# HISTOGRAM (DISTRIBUTION)
+# HISTOGRAM
 # =========================
 plt.figure()
 
-plt.hist(df['efficiency'], bins=5)
+plt.hist(df['defect_rate'], bins=5)
 
-plt.xlabel("Efficiency")
+plt.xlabel("Defect Rate")
 plt.ylabel("Frequency")
-plt.title("Efficiency Distribution")
+plt.title("Defect Rate Distribution")
 
 plt.tight_layout()
-plt.savefig("efficiency_distribution.png")
-plt.show()
+plt.savefig(f"{OUTPUT_PATH}/distribution.png")
+plt.close()
+
+# =========================
+# INSIGHTS
+# =========================
+worst_machine = machine_perf.sort_values(by='defect_rate', ascending=False).head(1)
+
+print("\n=== WORST MACHINE ===")
+print(worst_machine)
+
+print("\n=== SUMMARY ===")
+print(machine_perf)
