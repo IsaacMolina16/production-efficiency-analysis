@@ -1,30 +1,41 @@
 -- =========================
--- Query 1: Production Summary + Risk
+-- Production Summary + Risk (Improved)
 -- =========================
-SELECT 
-    machine_id,
-    SUM(units_produced) AS total_units,
-    SUM(downtime_minutes) AS total_downtime,
-    SUM(defects) AS total_defects,
+WITH machine_summary AS (
+    SELECT 
+        machine_id,
+        SUM(units_produced) AS total_units,
+        SUM(downtime_minutes) AS total_downtime,
+        SUM(defects) AS total_defects
+    FROM production
+    GROUP BY machine_id
+),
 
-    SUM(units_produced) / (SUM(downtime_minutes) + 1) AS efficiency,
+metrics AS (
+    SELECT *,
+        total_units * 1.0 / NULLIF(total_units + total_downtime, 0) AS efficiency,
+        total_defects * 1.0 / NULLIF(total_units, 0) AS defect_rate
+    FROM machine_summary
+),
+
+threshold AS (
+    SELECT AVG(defect_rate) AS avg_defect_rate
+    FROM metrics
+)
+
+SELECT 
+    m.machine_id,
+    m.total_units,
+    m.total_downtime,
+    m.total_defects,
+    m.efficiency,
+    m.defect_rate,
 
     CASE 
-        WHEN SUM(units_produced) / (SUM(downtime_minutes) + 1) < 8 THEN 'High Risk'
+        WHEN m.defect_rate > t.avg_defect_rate THEN 'High Risk'
         ELSE 'Low Risk'
     END AS risk_level
 
-FROM production
-GROUP BY machine_id
-ORDER BY efficiency ASC;
-
-
--- =========================
--- Query 2: Defect Rate Analysis
--- =========================
-SELECT 
-    machine_id,
-    SUM(defects) * 1.0 / SUM(units_produced) AS defect_rate
-FROM production
-GROUP BY machine_id
-ORDER BY defect_rate DESC;
+FROM metrics m
+CROSS JOIN threshold t
+ORDER BY m.defect_rate DESC;
